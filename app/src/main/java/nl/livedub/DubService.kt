@@ -19,6 +19,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Process
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import com.google.mlkit.common.model.DownloadConditions
@@ -75,9 +76,13 @@ class DubService : Service() {
     private var focusRequest: AudioFocusRequest? = null
     private var focusHeld = false
 
-    // TTS uses a usage that is NOT in the capture filter, so the app never hears (and re-translates) itself.
+    // Shown next to every status line while set, so a silent Dutch voice is never a mystery.
+    @Volatile private var ttsProblem: String? = null
+
+    // Normal media usage, so the Dutch voice follows the regular media volume. The capture excludes
+    // this app's own audio by UID (see buildRecord), so the app never hears and re-translates itself.
     private val speechAttrs = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+        .setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
 
@@ -142,6 +147,7 @@ class DubService : Service() {
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
             .addMatchingUsage(AudioAttributes.USAGE_GAME)
             .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+            .excludeUid(Process.myUid()) // never capture our own Dutch voice
             .build()
         val format = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -234,12 +240,14 @@ class DubService : Service() {
         tts = TextToSpeech(applicationContext) { status ->
             val engine = tts
             if (status != TextToSpeech.SUCCESS || engine == null) {
-                setStatus("Text-to-speech failed to start")
+                ttsProblem = "Text-to-speech failed to start"
+                setStatus("Check your text-to-speech engine")
                 return@TextToSpeech
             }
             val r = engine.setLanguage(Locale.forLanguageTag("nl-NL"))
             if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
-                setStatus("No Dutch voice installed – add one in Settings → Text-to-speech")
+                ttsProblem = "No Dutch voice installed (Settings → Text-to-speech → Dutch)"
+                setStatus("Dutch voice missing")
                 return@TextToSpeech
             }
             engine.setAudioAttributes(speechAttrs)
@@ -248,7 +256,10 @@ class DubService : Service() {
                 override fun onDone(utteranceId: String?) = finished(utteranceId)
 
                 @Suppress("OVERRIDE_DEPRECATION")
-                override fun onError(utteranceId: String?) = finished(utteranceId)
+                override fun onError(utteranceId: String?) {
+                    ttsProblem = "The Dutch voice reported an error"
+                    finished(utteranceId)
+                }
                 override fun onStop(utteranceId: String?, interrupted: Boolean) = finished(utteranceId)
             })
             ttsReady = true
@@ -266,7 +277,12 @@ class DubService : Service() {
         engine.setSpeechRate(minOf(1.7f, 1.0f + 0.15f * active.size))
         acquireFocus()
         active.add(id)
-        engine.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, id)
+        val result = engine.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, id)
+        if (result != TextToSpeech.SUCCESS) {
+            active.remove(id)
+            ttsProblem = "The speech engine rejected the Dutch text"
+            setStatus("Speech failed")
+        }
     }
 
     private fun finished(id: String?) {
@@ -296,11 +312,12 @@ class DubService : Service() {
     // ---------------------------------------------------------------- status + notification
 
     private fun setStatus(text: String) {
-        lastStatus = text
+        val shown = ttsProblem?.let { "⚠ $it — $text" } ?: text
+        lastStatus = shown
         main.post {
-            onStatus?.invoke(text)
+            onStatus?.invoke(shown)
             if (running) {
-                getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(text))
+                getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(shown))
             }
         }
     }
