@@ -13,7 +13,7 @@ Pipeline: `AudioPlaybackCapture` → Vosk (offline English speech-to-text) → M
 ## First run
 
 1. Tap **Start dubbing**. Grant the microphone and notification permissions.
-2. The app downloads the English speech model (~40 MB) and the Dutch translation model (~30 MB) once.
+2. The app downloads the English speech model (~130 MB) and the Dutch translation model (~30 MB) once.
 3. Accept the screen-capture prompt. This is how Android allows audio playback capture. Nothing is recorded or stored.
 4. Open YouTube and play an English video.
 
@@ -21,9 +21,9 @@ A Dutch voice must be installed: Settings → System → Languages → Text-to-s
 
 ## Notes and limits
 
-- Latency is roughly 2–4 s. Long run-on speech is cut after 14 words (`MAX_WORDS`) so the lag does not grow.
+- Latency is roughly 2–4 s. Long run-on speech is cut after 22 words (`MAX_WORDS`) so the lag does not grow.
 - If the Dutch queue backs up, the voice speeds up, then drops the backlog (`MAX_BACKLOG`).
 - The English is only *ducked* while the Dutch voice speaks, and some apps ignore ducking. Lowering YouTube's volume helps.
 - Apps can opt out of playback capture. If YouTube is captured silently, no audio is available to the app.
-- Quality: the small Vosk model is fast but makes mistakes. For better accuracy, swap in a larger model in `ModelManager.kt`.
+- Quality: speech recognition uses the `en-us-0.22-lgraph` Vosk model. Misheard English words become odd Dutch, so recognition accuracy limits translation quality.
 - Tweak `USAGE_*` in `DubService.buildRecord()` if some audio is not captured.

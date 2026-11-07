@@ -52,7 +52,7 @@ class DubService : Service() {
         private const val SAMPLE_RATE = 16_000
 
         /** Force a flush when a partial sentence reaches this many words (YouTube speech rarely pauses). */
-        private const val MAX_WORDS = 14
+        private const val MAX_WORDS = 22
 
         /** If this many Dutch sentences are still queued, drop the backlog and catch up. */
         private const val MAX_BACKLOG = 4

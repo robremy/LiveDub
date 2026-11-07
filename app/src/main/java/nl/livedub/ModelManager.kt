@@ -7,9 +7,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
 
-/** Downloads (once) and unpacks the small offline English Vosk model (~40 MB). */
+/** Downloads (once) and unpacks the offline English Vosk model. */
 object ModelManager {
-    const val MODEL_NAME = "vosk-model-small-en-us-0.15"
+    // Larger, much more accurate than the "small" model (~130 MB download, ~0.5 GB RAM while running)
+    const val MODEL_NAME = "vosk-model-en-us-0.22-lgraph"
+    private const val OLD_MODEL_NAME = "vosk-model-small-en-us-0.15"
     private const val MODEL_URL = "https://alphacephei.com/vosk/models/$MODEL_NAME.zip"
 
     fun modelDir(ctx: Context) = File(ctx.filesDir, MODEL_NAME)
@@ -51,6 +53,9 @@ object ModelManager {
         }
 
         modelDir(ctx).deleteRecursively()
+        // Free the space used by the previous small model
+        File(ctx.filesDir, OLD_MODEL_NAME).deleteRecursively()
+        File(ctx.filesDir, "$OLD_MODEL_NAME.ready").delete()
         unzip(zip, ctx.filesDir)
         zip.delete()
         marker(ctx).writeText("ok")
